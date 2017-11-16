@@ -1,49 +1,72 @@
 extern crate futures;
 extern crate hyper;
 extern crate tokio_core;
+extern crate clap;
 
 use std::fs::*;
-use std::io::{Write, Read};
+use std::io::Read;
 use futures::{Future, Stream};
-use hyper::mime::Mime;
-use hyper::header::{Headers, ContentType};
+use hyper::header::ContentType;
 use hyper::{Method, Request, Client, Uri};
 use tokio_core::reactor::Core;
 use std::string::String;
+use clap::{Arg, App};
 
 const XLSX_FORMAT: &str = "xlsx";
 
 fn main() {
-    let args: Vec<String> = std::env::args().collect();
+    let matches = App::new("Krmítko")
+        .version("0.2.0")
+        .author("Pavel Pscheidl <pavel.junior@pscheidl.cz>")
+        .about("Uploads Microsoft Excel files via HTTP POST as an octet stream to an endpoint of choice.")
+        .arg(Arg::with_name("DIRECTORY")
+            .short("d")
+            .long("directory")
+            .value_name("DIRECTORY PATH")
+            .help("Directory to scan for excel files")
+            .required(true)
+            .takes_value(true))
+        .arg(Arg::with_name("ENDPOINT")
+            .short("e")
+            .long("endpoint")
+            .value_name("ENDPOINT URL")
+            .help("Endpoint to HTTP POST files to")
+            .required(true)
+            .takes_value(true))
+        .get_matches();
 
-    if args.len() < 3 {
-        panic!("Please provide directory with excel files and target endpoint.");;
-    }
+    let directory: &str = matches.value_of("DIRECTORY").unwrap_or_else(|| {
+        panic!("Please set target directory");
+    });
 
-    let mut files: Vec<DirEntry> = Vec::new();
-    std::fs::read_dir(args[1].as_str()).unwrap()
-        .for_each(|file| {
-            files.push(file.unwrap());
-        });
+    let endpoint: &str = matches.value_of("ENDPOINT").unwrap_or_else(|| {
+        panic!("Please specify target endpoint");
+    });
 
-
-    let excel_files: Vec<File> = files.into_iter()
-        .filter(|file| {
-            return file.file_name().to_str().unwrap().ends_with(XLSX_FORMAT);
-        })
-        .map(|file| {
-            return File::open(file.path().as_path()).unwrap();
-        }).collect();
-
-    println!("Found {} excel files in target directory", excel_files.len());
-
+    let directory_entries: Vec<DirEntry> = find_files(directory);
 
     let mut core: Core = Core::new().unwrap();
-    let uri: Uri = args[2].parse().unwrap();
+    let uri: Uri = endpoint.parse().unwrap();
 
-    for file in excel_files {
+    for dir_entry in directory_entries {
+        let file = File::open(dir_entry.path().as_path()).unwrap();
+        println!("Beginning upload of {:?}", dir_entry.file_name());
         upload_file::<String>(file, &mut core, uri.clone());
     }
+}
+
+fn find_files(directory: &str) -> Vec<DirEntry> {
+    let files: Vec<DirEntry> = std::fs::read_dir(directory).unwrap()
+        .map(|file| {
+            file.unwrap()
+        }).filter(|file| {
+        return file.file_name().to_str().unwrap().ends_with(XLSX_FORMAT);
+    })
+        .collect();
+
+    println!("Found {} excel files in target directory \'{}\' \n", files.len(), directory);
+
+    return files;
 }
 
 fn upload_file<T>(mut file: File, core: &mut Core, uri: Uri) {
@@ -65,8 +88,8 @@ fn upload_file<T>(mut file: File, core: &mut Core, uri: Uri) {
 
     let status = core.run(post);
     match status {
-        Ok(_) => {println!("Upload successful")},
-        Err(_) => {println!("Upload failed")},
+        Ok(_) => { println!("Upload successful \n") }
+        Err(_) => { println!("Upload failed \n") }
     }
 }
 
