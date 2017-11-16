@@ -1,5 +1,5 @@
 ## Krmítko
-[![Build Status](https://api.travis-ci.org/Pscheidl/krmitko.svg?branch=master](https://travis-ci.org/Pscheidl/krmitko)
+[![Build Status](https://api.travis-ci.org/Pscheidl/krmitko.svg?branch=master)](https://travis-ci.org/Pscheidl/krmitko)
 
 A simple utility to upload excel files via HTTP POST as an octet stream to an endpoint of choice.
 
